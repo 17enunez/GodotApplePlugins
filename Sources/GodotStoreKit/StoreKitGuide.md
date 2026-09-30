@@ -7,6 +7,7 @@ rules and App Store Connect setup, see [Apple's StoreKit documentation](https://
 
 * [Start StoreKit](#start-storekit)
 * [Handle transactions](#handle-transactions)
+* [Check current entitlements at startup](#check-current-entitlements-at-startup)
 * [Redeem offer codes](#redeem-offer-codes)
 * [Handle external offer-code redemptions](#handle-external-offer-code-redemptions)
 * [Test offer codes](#test-offer-codes)
@@ -59,6 +60,8 @@ func _on_transaction_updated(transaction: StoreTransaction) -> void:
 			add_coins(100)
 		"com.example.game.remove_ads":
 			unlock_remove_ads()
+		"com.example.game.full_version":
+			unlock_full_version()
 		_:
 			push_warning("Unknown product: %s" % transaction.product_id)
 			return
@@ -70,6 +73,47 @@ func _on_transaction_updated(transaction: StoreTransaction) -> void:
 It does not return consumables. Use unfinished transactions to recover a
 consumable purchase that the app did not finish. `start()` does this
 automatically. You can call `fetch_unfinished_transactions()` again to retry.
+
+# Check current entitlements at startup
+
+Connect `current_entitlements_fetch_completed` before you call
+`fetch_current_entitlements()`. The method sends each verified entitlement
+through `transaction_updated` and each unverified entitlement through
+`unverified_transaction_updated`. It then sends
+`current_entitlements_fetch_completed` with an array of verified current
+entitlements. The array is empty when StoreKit finds no verified current
+entitlements. The completion signal also fires for this empty result.
+
+Use the array to select the first screen. It contains only entitlements from
+this check, so other transaction updates cannot change the result. In this
+example, `com.example.game.full_version` is a non-consumable purchase:
+
+```gdscript
+const FULL_VERSION_ID = "com.example.game.full_version"
+
+var store_kit: StoreKitManager
+
+func _ready() -> void:
+	store_kit = StoreKitManager.new()
+	store_kit.transaction_updated.connect(_on_transaction_updated)
+	store_kit.unverified_transaction_updated.connect(_on_unverified_transaction_updated)
+	store_kit.current_entitlements_fetch_completed.connect(_on_current_entitlements_fetch_completed)
+	store_kit.start()
+	store_kit.fetch_current_entitlements()
+
+func _on_current_entitlements_fetch_completed(
+	entitlements: Array[StoreTransaction]
+) -> void:
+	for entitlement in entitlements:
+		if entitlement.product_id == FULL_VERSION_ID:
+			get_tree().change_scene_to_file("res://full_menu.tscn")
+			return
+	get_tree().change_scene_to_file("res://demo_menu.tscn")
+```
+
+Use the transaction handlers in the earlier examples to deliver and finish
+transactions. Do not grant access for an unverified transaction. StoreKit does
+not include consumables in current entitlements.
 
 # Redeem offer codes
 

@@ -22,6 +22,7 @@
 			<description>
 				The current entitlements sequence provides the most recent transaction for each product the customer is entitled to, use this
 				to refresh the list of features the user is entitled to.
+				Connect [signal current_entitlements_fetch_completed] before you call this method. Each verified entitlement is sent through [signal transaction_updated]. Each unverified entitlement is sent through [signal unverified_transaction_updated]. When the check finishes, [signal current_entitlements_fetch_completed] provides an array of the verified entitlements. The array is empty if there are no verified current entitlements.
 
 				Specifically, it includes:
 
@@ -82,6 +83,12 @@
 		</method>
 	</methods>
 	<signals>
+		<signal name="current_entitlements_fetch_completed">
+			<param index="0" name="entitlements" type="Array[StoreTransaction]" />
+			<description>
+				Emitted once after each call to [method fetch_current_entitlements], including when the result is empty. [param entitlements] contains the verified current entitlements from that call. The manager emits the related [signal transaction_updated] and [signal unverified_transaction_updated] signals before this signal. Unverified transactions are not included in [param entitlements].
+			</description>
+		</signal>
 		<signal name="products_request_completed">
 			<param index="0" name="products" type="Array" />
 			<param index="1" name="status" type="int" />

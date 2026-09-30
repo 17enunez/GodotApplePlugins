@@ -17,6 +17,7 @@ public class StoreKitManager: RefCounted, @unchecked Sendable {
     // StoreTransaction
     @Signal("transaction") var transaction_updated: SignalWithArguments<StoreTransaction?>
     @Signal("transaction", "verification_error") var unverified_transaction_updated: SignalWithArguments<StoreTransaction?, Int>
+    @Signal("entitlements") var current_entitlements_fetch_completed: SignalWithArguments<TypedArray<StoreTransaction?>>
 
     // StoreProduct
     @Signal("product") var purchase_intent: SignalWithArguments<StoreProduct?>
@@ -85,7 +86,7 @@ public class StoreKitManager: RefCounted, @unchecked Sendable {
     private func startTransactionListener() {
         updatesTask = Task {
             for await verificationResult in Transaction.updates {
-                handleTransaction(verificationResult)
+                await handleTransaction(verificationResult)
             }
         }
         subscriptionTask = Task {
@@ -142,25 +143,18 @@ public class StoreKitManager: RefCounted, @unchecked Sendable {
         }
     }
 
-    private func handleTransaction(_ verificationResult: VerificationResult<Transaction>) {
+    @MainActor
+    @discardableResult
+    private func handleTransaction(_ verificationResult: VerificationResult<Transaction>) -> StoreTransaction? {
         switch verificationResult {
         case .verified(let transaction):
             let storeTransaction = StoreTransaction(transaction, jws: verificationResult.jwsRepresentation)
-            // Always finish the transaction if it's verified and we've received it
-            // In a real app, we might want to wait until the user has unlocked content,
-            // but for this binding, we'll emit the signal and finish it.
-            // The user can check the transaction state.
-
-            // Emit signal on main thread
-            Task { @MainActor in
-                self.transaction_updated.emit(storeTransaction)
-            }
+            self.transaction_updated.emit(storeTransaction)
+            return storeTransaction
         case .unverified(let transaction, let verificationError):
             let storeTransaction = StoreTransaction(transaction, jws: verificationResult.jwsRepresentation)
-            Task { @MainActor in
-                self.unverified_transaction_updated.emit(storeTransaction, VerificationError.from(verificationError).rawValue)
-            }
-            break
+            self.unverified_transaction_updated.emit(storeTransaction, VerificationError.from(verificationError).rawValue)
+            return nil
         }
     }
 
@@ -258,10 +252,14 @@ public class StoreKitManager: RefCounted, @unchecked Sendable {
 
     @Callable()
     func fetch_current_entitlements() {
-        Task {
+        Task { @MainActor in
+            let entitlements = TypedArray<StoreTransaction?>()
             for await entitlement in Transaction.currentEntitlements {
-                handleTransaction(entitlement)
+                if let transaction = handleTransaction(entitlement) {
+                    entitlements.append(transaction)
+                }
             }
+            self.current_entitlements_fetch_completed.emit(entitlements)
         }
     }
 
@@ -276,7 +274,7 @@ public class StoreKitManager: RefCounted, @unchecked Sendable {
         unfinishedTask = Task {
             for await transaction in Transaction.unfinished {
                 guard !Task.isCancelled else { return }
-                handleTransaction(transaction)
+                await handleTransaction(transaction)
             }
         }
     }
