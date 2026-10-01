@@ -32,13 +32,9 @@ public let godotApplePluginsStoreKitMinimumInitializationLevel = minimumInitiali
 public func godotApplePluginsStoreKitInitialize(level: ExtensionInitializationLevel) {
     godotApplePluginsStoreKitTypes[level]?.forEach(register)
     if level == .scene {
-        registerEnum(ProductView.ViewStyle.self)
-        registerEnum(StoreKitManager.StoreKitStatus.self)
-        registerEnum(StoreKitManager.VerificationError.self)
-        registerEnum(SubscriptionStoreView.ControlStyle.self)
+        // These classes do not use @Godot, so register their enums here.
         registerEnum(StoreProductSubscriptionOffer.OfferType.self)
         registerEnum(StoreProductSubscriptionPeriod.Unit.self)
-        registerEnum(StoreSubscriptionInfoStatus.RenewalState.self)
     } else if level == .editor {
 #if os(macOS)
         loadEmbeddedStoreKitDocs()

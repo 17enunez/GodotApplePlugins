@@ -44,28 +44,7 @@ public let godotApplePluginsARKitMinimumInitializationLevel = minimumInitializat
 
 public func godotApplePluginsARKitInitialize(level: ExtensionInitializationLevel) {
     godotApplePluginsARKitTypes[level]?.forEach(register)
-    if level == .scene {
-        registerEnum(ARSession.RunOption.self)
-        registerEnum(ARWorldTrackingConfiguration.WorldAlignment.self)
-        registerEnum(ARWorldTrackingConfiguration.EnvironmentTexturing.self)
-        registerEnum(ARFrame.WorldMappingStatus.self)
-        registerEnum(ARCamera.TrackingState.self)
-        registerEnum(ARCamera.TrackingStateReason.self)
-        registerEnum(ARPlaneAnchor.Alignment.self)
-        registerEnum(ARPlaneAnchor.ClassificationStatus.self)
-        registerEnum(ARPlaneAnchor.Classification.self)
-        registerEnum(ARRaycastQuery.Target.self)
-        registerEnum(ARRaycastQuery.TargetAlignment.self)
-        registerEnum(ARRaycastResult.Target.self)
-        registerEnum(ARRaycastResult.TargetAlignment.self)
-        registerEnum(ARMeshAnchor.MeshClassification.self)
-        registerEnum(ARFaceAnchor.BlendShapeLocation.self)
-        registerEnum(ARHandAnchor.Chirality.self)
-        registerEnum(ARHandSkeleton.JointName.self)
-        registerEnum(ARCoachingOverlay.Goal.self)
-        registerEnum(ARGeoAnchor.AltitudeSource.self)
-        registerEnum(ARCollaborationData.Priority.self)
-    } else if level == .editor {
+    if level == .editor {
 #if os(macOS)
         loadEmbeddedARKitDocs()
 #endif

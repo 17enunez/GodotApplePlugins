@@ -30,11 +30,7 @@ public let godotApplePluginsCoreMotionMinimumInitializationLevel = minimumInitia
 
 public func godotApplePluginsCoreMotionInitialize(level: ExtensionInitializationLevel) {
     godotApplePluginsCoreMotionTypes[level]?.forEach(register)
-    if level == .scene {
-        registerEnum(CMMotionManager.AttitudeReferenceFrame.self)
-        registerEnum(CMDeviceMotion.MagneticFieldCalibrationAccuracy.self)
-        registerEnum(CMMotionActivity.Confidence.self)
-    } else if level == .editor {
+    if level == .editor {
 #if os(macOS)
         loadEmbeddedCoreMotionDocs()
 #endif

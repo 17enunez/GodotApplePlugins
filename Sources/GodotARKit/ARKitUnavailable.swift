@@ -24,22 +24,22 @@ class ARWorldTrackingConfiguration: RefCounted, @unchecked Sendable {
     }
 
     enum PlaneDetection: Int, CaseIterable {
-        case NONE = 0
+        case PLANE_DETECTION_NONE = 0
         case HORIZONTAL = 1
         case VERTICAL = 2
         case SLANTED = 4
     }
 
     enum SceneReconstruction: Int, CaseIterable {
-        case NONE = 0
+        case SCENE_RECONSTRUCTION_NONE = 0
         case MESH = 1
         case MESH_WITH_CLASSIFICATION = 3
     }
 
     @Export(.enum) var worldAlignment: WorldAlignment = .GRAVITY
     @Export(.enum) var environmentTexturing: EnvironmentTexturing = .NONE
-    @Export(.enum) var sceneReconstruction: SceneReconstruction = .NONE
-    @Export var planeDetectionMask: Int = PlaneDetection.NONE.rawValue
+    @Export(.enum) var sceneReconstruction: SceneReconstruction = .SCENE_RECONSTRUCTION_NONE
+    @Export var planeDetectionMask: Int = PlaneDetection.PLANE_DETECTION_NONE.rawValue
     @Export var isLightEstimationEnabled: Bool = true
     @Export var isAutoFocusEnabled: Bool = true
     @Export var providesAudioData: Bool = false
@@ -51,10 +51,10 @@ class ARWorldTrackingConfiguration: RefCounted, @unchecked Sendable {
     @Export var appClipCodeTrackingEnabled: Bool = false
     @Export var handTrackingEnabled: Bool = false
     @Export var detectionImageGroupName: String = ""
-    @Export var frameSemanticsMask: Int = FrameSemantics.NONE.rawValue
+    @Export var frameSemanticsMask: Int = FrameSemantics.FRAME_SEMANTICS_NONE.rawValue
 
     enum FrameSemantics: Int, CaseIterable {
-        case NONE = 0
+        case FRAME_SEMANTICS_NONE = 0
         case PERSON_SEGMENTATION = 1
         case PERSON_SEGMENTATION_WITH_DEPTH = 2
         case BODY_DETECTION = 4

@@ -111,6 +111,9 @@
 		<constant name="AUTOMATIC" value="2" enum="EnvironmentTexturing">
 			Allow ARKit to generate environment probes automatically.
 		</constant>
+		<constant name="PLANE_DETECTION_NONE" value="0" enum="PlaneDetection">
+			Disable plane detection.
+		</constant>
 		<constant name="HORIZONTAL" value="1" enum="PlaneDetection">
 			Detect horizontal planes.
 		</constant>
@@ -120,11 +123,17 @@
 		<constant name="SLANTED" value="4" enum="PlaneDetection">
 			Detect slanted planes when supported.
 		</constant>
+		<constant name="SCENE_RECONSTRUCTION_NONE" value="0" enum="SceneReconstruction">
+			Disable scene reconstruction.
+		</constant>
 		<constant name="MESH" value="1" enum="SceneReconstruction">
 			Reconstruct scene geometry as a mesh.
 		</constant>
 		<constant name="MESH_WITH_CLASSIFICATION" value="3" enum="SceneReconstruction">
 			Reconstruct scene geometry and classify mesh faces.
+		</constant>
+		<constant name="FRAME_SEMANTICS_NONE" value="0" enum="FrameSemantics">
+			Disable optional frame semantics.
 		</constant>
 		<constant name="PERSON_SEGMENTATION" value="1" enum="FrameSemantics">
 			Enable person segmentation mattes.

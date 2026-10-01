@@ -49,18 +49,7 @@ public let godotApplePluginsGameCenterMinimumInitializationLevel = minimumInitia
 
 public func godotApplePluginsGameCenterInitialize(level: ExtensionInitializationLevel) {
     godotApplePluginsGameCenterTypes[level]?.forEach(register)
-    if level == .scene {
-        registerEnum(GKAccessPoint.Location.self)
-        registerEnum(GKGameCenterViewController.State.self)
-        registerEnum(GKLeaderboard.AppleLeaderboardType.self)
-        registerEnum(GKLeaderboard.TimeScope.self)
-        registerEnum(GKLeaderboard.PlayerScope.self)
-        registerEnum(GKMatch.SendDataMode.self)
-        registerEnum(GKMatchRequest.MatchType.self)
-        registerEnum(GKMatchRequest.InviteRecipientResponse.self)
-        registerEnum(GKTurnBasedMatchmakerViewController.MatchmakingMode.self)
-        registerEnum(GKError.Code.self)
-    } else if level == .editor {
+    if level == .editor {
 #if os(macOS)
         loadEmbeddedGameCenterDocs()
 #endif

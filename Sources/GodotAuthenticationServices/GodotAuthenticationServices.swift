@@ -21,10 +21,7 @@ public let godotApplePluginsAuthenticationServicesMinimumInitializationLevel = m
 
 public func godotApplePluginsAuthenticationServicesInitialize(level: ExtensionInitializationLevel) {
     godotApplePluginsAuthenticationServicesTypes[level]?.forEach(register)
-    if level == .scene {
-        registerEnum(ASAuthorizationAppleIDCredential.UserDetectionStatus.self)
-        registerEnum(ASAuthorizationAppleIDCredential.UserAgeRange.self)
-    } else if level == .editor {
+    if level == .editor {
 #if os(macOS)
         loadEmbeddedAuthenticationServicesDocs()
 #endif

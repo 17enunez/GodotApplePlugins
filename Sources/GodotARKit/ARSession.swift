@@ -620,7 +620,7 @@ class ARSession: RefCounted, @unchecked Sendable {
     }
 
     private func makeSceneReconstructionProvider(configuration: ARWorldTrackingConfiguration) -> SceneReconstructionProvider? {
-        guard configuration.sceneReconstruction != .NONE, SceneReconstructionProvider.isSupported else { return nil }
+        guard configuration.sceneReconstruction != .SCENE_RECONSTRUCTION_NONE, SceneReconstructionProvider.isSupported else { return nil }
         return SceneReconstructionProvider()
     }
 
