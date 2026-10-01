@@ -1,13 +1,31 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <class name="GKGameCenterViewController" inherits="RefCounted" api_type="extension" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/godotengine/godot/master/doc/class.xsd">
 	<brief_description>
-		This class is used to present the different Game Center dashboards and the way to use it is by calling one of the different static show_* methods in this class in a fire-and-forget mode.
+		Presents Game Center dashboards and player information.
 	</brief_description>
 	<description>
+		Call a static [code]show_*[/code] method to present Game Center UI. Call [method dismiss] to close the UI shown by the last [code]show_*[/code] call.
+		[codeblocks]
+		[gdscript]
+		GKGameCenterViewController.show_type(GKGameCenterViewController.DASHBOARD)
+		[/gdscript]
+		[/codeblocks]
+		Later, from your own event handler, call:
+		[codeblocks]
+		[gdscript]
+		GKGameCenterViewController.dismiss()
+		[/gdscript]
+		[/codeblocks]
 	</description>
 	<tutorials>
 	</tutorials>
 	<methods>
+		<method name="dismiss" qualifiers="static">
+			<return type="void" />
+			<description>
+				Closes the Game Center UI shown by the last [code]show_*[/code] call. Has no effect if no Game Center UI is open.
+			</description>
+		</method>
 		<method name="show_achievement" qualifiers="static">
 			<return type="void" />
 			<param index="0" name="id" type="String" />

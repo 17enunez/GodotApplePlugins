@@ -23,6 +23,26 @@
 		)
 		[/gdscript]
 		[/codeblocks]
+
+		To close the UI from your game, keep the controller returned by [method create_controller]:
+		[codeblocks]
+		[gdscript]
+		var request := GKMatchRequest.new()
+		request.min_players = 2
+		request.max_players = 2
+
+		var controller := GKMatchmakerViewController.create_controller(request)
+		if controller:
+		    controller.present()
+		[/gdscript]
+		[/codeblocks]
+		Later, from your own event handler, call:
+		[codeblocks]
+		[gdscript]
+		if controller:
+		    controller.dismiss()
+		[/gdscript]
+		[/codeblocks]
 	</description>
 	<tutorials>
 	</tutorials>
@@ -46,6 +66,12 @@
 			<param index="0" name="invite" type="GKInvite" />
 			<description>
 				Creates a matchmaking controller configured from an accepted [GKInvite].
+			</description>
+		</method>
+		<method name="dismiss">
+			<return type="void" />
+			<description>
+				Closes this controller's matchmaking UI. This method does not emit [signal cancelled]. Keep the controller returned by [method create_controller] or [method create_controller_from_invite] to call it.
 			</description>
 		</method>
 		<method name="present">

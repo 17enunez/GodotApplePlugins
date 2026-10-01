@@ -18,24 +18,17 @@ import GameKit
 class GKGameCenterViewController: RefCounted, @unchecked Sendable {
     class Delegate: NSObject, GameKit.GKGameCenterControllerDelegate {
         func gameCenterViewControllerDidFinish(_ gameCenterViewController: GameKit.GKGameCenterViewController) {
-#if os(iOS)
-            gameCenterViewController.dismiss(animated: true)
-#else
-            dialogController?.dismiss(gameCenterViewController)
-
-#endif
-            done()
-        }
-        
-#if os(macOS)
-        var dialogController: GKDialogController?
-#endif
-        var done: () -> ()
-
-        init(done: @escaping () -> ()) {
-            self.done = done
+            MainActor.assumeIsolated {
+                GKGameCenterViewController.dismissCurrent(gameCenterViewController)
+            }
         }
     }
+
+    @MainActor private static var activeController: GameKit.GKGameCenterViewController?
+    @MainActor private static var activeDelegate: Delegate?
+    #if os(macOS)
+        @MainActor private static var activeDialogController: GKDialogController?
+    #endif
 
     enum State: Int, CaseIterable {
         case DEFAULT_SCREEN
@@ -110,16 +103,41 @@ class GKGameCenterViewController: RefCounted, @unchecked Sendable {
         }
     }
 
+    @Callable static func dismiss() {
+        MainActor.assumeIsolated {
+            dismissCurrent()
+        }
+    }
+
+    @MainActor
+    private static func dismissCurrent(_ expectedController: GameKit.GKGameCenterViewController? = nil) {
+        guard let controller = activeController else { return }
+        if let expectedController, expectedController !== controller { return }
+
+        #if os(macOS)
+            let dialogController = activeDialogController
+            activeDialogController = nil
+        #endif
+        activeController = nil
+        activeDelegate = nil
+
+        #if os(iOS)
+            controller.dismiss(animated: true)
+        #else
+            dialogController?.dismiss(controller)
+        #endif
+    }
+
     @MainActor
     static func show(_ controller: GameKit.GKGameCenterViewController) {
-        var hold: Delegate?
-        hold = Delegate {
-            hold = nil
-        }
-        controller.gameCenterDelegate = hold
+        dismissCurrent()
+        let delegate = Delegate()
+        controller.gameCenterDelegate = delegate
+        activeController = controller
+        activeDelegate = delegate
         present(controller: controller) {
 #if os(macOS)
-            hold?.dialogController = $0 as? GKDialogController
+            activeDialogController = $0 as? GKDialogController
 #endif
         }
     }

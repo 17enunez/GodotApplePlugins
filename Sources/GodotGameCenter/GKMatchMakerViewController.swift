@@ -414,6 +414,18 @@ class GKMatchmakerViewController: RefCounted, @unchecked Sendable {
         }
     }
 
+    @Callable func dismiss() {
+        guard let vc else { return }
+
+        MainActor.assumeIsolated {
+            #if os(macOS)
+                dialogController?.dismiss(vc)
+            #else
+                vc.dismiss(animated: true)
+            #endif
+        }
+    }
+
     @Callable
     func set_hosted_player_did_connect(player: GKPlayer, didConnect: Bool) {
         MainActor.assumeIsolated {

@@ -18,6 +18,7 @@ would access `game_player_id`.
 
 * [Installation](#installation)
 * [Authentication](#authentication)
+* [Game Center Dashboard](#game-center-dashboard)
 * [Players](#players)
 * [Achievements](#achievements)
 * [Realtime Matchmaking](#realtime-matchmaking)
@@ -67,6 +68,21 @@ func _ready() -> void:
 	)
 
 	game_center.authenticate()
+```
+
+# Game Center Dashboard
+
+Use a static `show_*` method to open Game Center UI. Call `dismiss()` when
+your game needs to close it:
+
+```gdscript
+GKGameCenterViewController.show_type(GKGameCenterViewController.DASHBOARD)
+```
+
+Later, from your own event handler, call:
+
+```gdscript
+GKGameCenterViewController.dismiss()
 ```
 
 # Players
@@ -358,6 +374,28 @@ GKMatchmakerViewController.request_match(req, func(game_match: GKMatch, error: V
         )
 )
 ```
+
+To close the realtime matchmaking UI from your game, keep the controller
+returned by `create_controller()`:
+
+```gdscript
+var request := GKMatchRequest.new()
+request.min_players = 2
+request.max_players = 2
+
+var controller := GKMatchmakerViewController.create_controller(request)
+if controller:
+    controller.present()
+```
+
+Later, from your own event handler, call:
+
+```gdscript
+if controller:
+    controller.dismiss()
+```
+
+Calling `dismiss()` does not emit `cancelled`.
 
 ## Disconnect
 
