@@ -23,8 +23,11 @@ SPLIT_X64_RUNTIME_LOAD_DYLIB ?= @rpath/$(SPLIT_RUNTIME_FRAMEWORK)_x64.framework/
 XCODEBUILD ?= xcodebuild
 # BudgetBank fork: xcodebuild on the command line refuses to run SwiftGodot's
 # package plugin (CodeGeneratorPlugin) and macros until they're "trusted" in the
-# Xcode UI ("Validate plug-in ... in package swiftgodot" error). These flags trust them.
-XCODEBUILD_SETTINGS ?= -skipPackagePluginValidation -skipMacroValidation
+# Xcode UI ("Validate plug-in ... in package swiftgodot" error); the skip flags
+# trust them. The rest is what upstream's release workflow passes (0f0c77f):
+# header padding so split-dist's install_name_tool can add the runtime rpaths
+# (without it split-dist stops with "Error 1" on the second framework).
+XCODEBUILD_SETTINGS ?= -skipPackagePluginValidation -skipMacroValidation CODE_SIGNING_ALLOWED=NO OTHER_LDFLAGS="-Xlinker -headerpad_max_install_names"
 XCODEBUILD_LOG_ON_ERROR ?=
 XCODEBUILD_LOG_DIR ?=
 XCODEBUILD_HEARTBEAT_SECONDS ?= 60

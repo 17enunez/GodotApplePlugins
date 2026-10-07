@@ -30,6 +30,12 @@ swift-syntax from scratch, so the first build is slow and needs internet.
 
 If the targets are already built: `make split-dist MACOS_X86_64=0`.
 
+Header padding: the frameworks must be linked with
+`-headerpad_max_install_names` (Makefile `XCODEBUILD_SETTINGS` and
+`relink_without_swiftsyntax.sh`, as in upstream 0f0c77f), otherwise
+split-dist's `install_name_tool` can't add the runtime rpath and stops with
+"make: *** [split-dist] Error 1" (2026-10-07).
+
 ## Install into BudgetBuddy
 Close Godot, then copy those three folders over `BudgetBuddy/addons/` with
 Finder or `ditto` (never the AssetLib tab: it flattens the framework symlinks).
