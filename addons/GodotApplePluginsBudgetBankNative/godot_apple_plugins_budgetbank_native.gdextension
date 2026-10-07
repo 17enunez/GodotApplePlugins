@@ -1,0 +1,18 @@
+[configuration]
+
+entry_symbol = "godot_apple_plugins_budgetbank_native_start"
+compatibility_minimum = 4.2
+
+[libraries]
+ios = "res://addons/GodotApplePluginsBudgetBankNative/bin/GodotApplePluginsBudgetBankNative.xcframework"
+linux.arm64 = "res://addons/GodotApplePluginsBudgetBankNative/bin/godot_apple_plugins_budgetbank_native_stub.linux.arm64.so"
+linux.x86_64 = "res://addons/GodotApplePluginsBudgetBankNative/bin/godot_apple_plugins_budgetbank_native_stub.linux.x86_64.so"
+macos.arm64 = "res://addons/GodotApplePluginsBudgetBankNative/bin/GodotApplePluginsBudgetBankNative.framework"
+macos.x86_64 = "res://addons/GodotApplePluginsBudgetBankNative/bin/GodotApplePluginsBudgetBankNative_x64.framework"
+windows.arm64 = "res://addons/GodotApplePluginsBudgetBankNative/bin/godot_apple_plugins_budgetbank_native_stub.windows.arm64.dll"
+windows.x86_64 = "res://addons/GodotApplePluginsBudgetBankNative/bin/godot_apple_plugins_budgetbank_native_stub.windows.x86_64.dll"
+
+[dependencies]
+ios = { "res://addons/GodotApplePluginsRuntime/bin/SwiftGodotRuntime.xcframework": "" }
+macos.arm64 = { "res://addons/GodotApplePluginsRuntime/bin/SwiftGodotRuntime.framework": "" }
+macos.x86_64 = { "res://addons/GodotApplePluginsRuntime/bin/SwiftGodotRuntime_x64.framework": "" }

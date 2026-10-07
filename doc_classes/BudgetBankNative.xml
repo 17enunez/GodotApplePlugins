@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="BudgetBankNative" inherits="RefCounted" api_type="extension" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/godotengine/godot/master/doc/class.xsd">
+	<brief_description>
+		Native iOS features for BudgetBank (BudgetBank fork).
+	</brief_description>
+	<description>
+		Review prompt and the iOS keyboard's space-bar caret, which Godot 4.6 does not forward. Used by BudgetBank's Native.gd.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="install_keyboard_caret_hook">
+			<return type="bool" />
+			<description>
+				Forwards caret moves made with the iOS keyboard's space-bar trackpad as [signal keyboard_caret_moved]. Returns [code]true[/code] when installed. iOS only.
+			</description>
+		</method>
+		<method name="ping">
+			<return type="String" />
+			<description>
+				Returns [code]"pong"[/code]. Smoke test that the module loaded.
+			</description>
+		</method>
+		<method name="request_review">
+			<return type="void" />
+			<description>
+				Asks iOS to show the App Store review prompt; iOS decides whether it appears. iOS only.
+			</description>
+		</method>
+	</methods>
+	<signals>
+		<signal name="keyboard_caret_moved">
+			<param index="0" name="column" type="int" />
+			<param index="1" name="length" type="int" />
+			<description>
+				The caret moved to [param column] (characters); [param length] &gt; 0 when text is selected.
+			</description>
+		</signal>
+	</signals>
+</class>

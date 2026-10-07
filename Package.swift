@@ -197,6 +197,12 @@ let package = Package(
             type: .dynamic,
             targets: ["GodotApplePluginsCoreMotion"]
         ),
+        // BudgetBank fork
+        .library(
+            name: "GodotApplePluginsBudgetBankNative",
+            type: .dynamic,
+            targets: ["GodotApplePluginsBudgetBankNative"]
+        ),
         .executable(
             name: "GodotApplePluginsStubGenerator",
             targets: ["GodotApplePluginsStubGenerator"]
@@ -265,6 +271,11 @@ let package = Package(
             path: "Sources/GodotCoreMotion",
             exclude: ["CoreMotionGuide.md"],
             resources: coreMotionDocResources
+        ),
+        // BudgetBank fork: review prompt + keyboard caret hook (see Sources/GodotBudgetBankNative)
+        pluginTarget(
+            name: "GodotApplePluginsBudgetBankNative",
+            path: "Sources/GodotBudgetBankNative"
         ),
         .executableTarget(
             name: "GodotApplePluginsStubGenerator"

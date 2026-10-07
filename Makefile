@@ -8,14 +8,19 @@ DERIVED_DATA ?= $(CURDIR)/.xcodebuild
 WORKSPACE ?= .swiftpm/xcode/package.xcworkspace
 SCHEME ?= GodotApplePlugins
 FRAMEWORK_NAMES ?= GodotApplePlugins
-SPLIT_FRAMEWORK_NAMES ?= GodotApplePluginsAVFoundation GodotApplePluginsFoundation GodotApplePluginsGameCenter GodotApplePluginsStoreKit GodotApplePluginsAuthenticationServices GodotApplePluginsARKit GodotApplePluginsCoreMotion
+# BudgetBank fork: only the two modules BudgetBank ships. Upstream's full list:
+# GodotApplePluginsAVFoundation GodotApplePluginsFoundation GodotApplePluginsGameCenter GodotApplePluginsStoreKit GodotApplePluginsAuthenticationServices GodotApplePluginsARKit GodotApplePluginsCoreMotion
+SPLIT_FRAMEWORK_NAMES ?= GodotApplePluginsAuthenticationServices GodotApplePluginsBudgetBankNative
 SPLIT_RUNTIME_FRAMEWORK ?= SwiftGodotRuntime
 SPLIT_RUNTIME_RPATH ?= @loader_path/../../../../../GodotApplePluginsRuntime/bin
 SPLIT_RUNTIME_FRAMEWORK_RPATH ?= @loader_path/../../../GodotApplePluginsRuntime/bin
 SPLIT_RUNTIME_LOAD_DYLIB ?= @rpath/$(SPLIT_RUNTIME_FRAMEWORK).framework/Versions/A/$(SPLIT_RUNTIME_FRAMEWORK)
 SPLIT_X64_RUNTIME_LOAD_DYLIB ?= @rpath/$(SPLIT_RUNTIME_FRAMEWORK)_x64.framework/Versions/A/$(SPLIT_RUNTIME_FRAMEWORK)
 XCODEBUILD ?= xcodebuild
-XCODEBUILD_SETTINGS ?=
+# BudgetBank fork: xcodebuild on the command line refuses to run SwiftGodot's
+# package plugin (CodeGeneratorPlugin) and macros until they're "trusted" in the
+# Xcode UI ("Validate plug-in ... in package swiftgodot" error). These flags trust them.
+XCODEBUILD_SETTINGS ?= -skipPackagePluginValidation -skipMacroValidation
 XCODEBUILD_LOG_ON_ERROR ?=
 XCODEBUILD_LOG_DIR ?=
 XCODEBUILD_HEARTBEAT_SECONDS ?= 60
@@ -208,6 +213,11 @@ split-generate-stubs:
 				library_name="godot_apple_plugins_arkit_stub"; \
 				files="ARSession ARWorldTrackingConfiguration ARFrame ARCamera ARLightEstimate ARPointCloud ARAnchor ARPlaneAnchor ARRaycastQuery ARRaycastResult ARTrackedRaycast ARImageAnchor ARMeshAnchor ARFaceAnchor ARWorldMap ARBodyTrackingConfiguration ARBodyAnchor ARBodySkeleton ARHandAnchor ARHandSkeleton ARCoachingOverlay AREnvironmentProbeAnchor ARGeoTrackingConfiguration ARGeoAnchor ARCollaborationData"; \
 				;; \
+			GodotApplePluginsBudgetBankNative) \
+				entry_symbol="godot_apple_plugins_budgetbank_native_start"; \
+				library_name="godot_apple_plugins_budgetbank_native_stub"; \
+				files="BudgetBankNative"; \
+				;; \
 			GodotApplePluginsCoreMotion) \
 				entry_symbol="godot_apple_plugins_core_motion_start"; \
 				library_name="godot_apple_plugins_core_motion_stub"; \
@@ -397,6 +407,9 @@ dist:
 				;; \
 			GodotApplePluginsARKit) \
 				registration_source="Sources/GodotARKit/GodotARKit.swift"; \
+				;; \
+			GodotApplePluginsBudgetBankNative) \
+				registration_source="Sources/GodotBudgetBankNative/GodotBudgetBankNative.swift"; \
 				;; \
 			GodotApplePluginsCoreMotion) \
 				registration_source="Sources/GodotCoreMotion/GodotCoreMotion.swift"; \

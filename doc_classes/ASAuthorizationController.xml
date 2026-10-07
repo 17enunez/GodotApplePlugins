@@ -53,6 +53,14 @@
 				                success, or the [signal authorization_failed] on failure.
 			</description>
 		</method>
+		<method name="signin_with_scopes_and_nonce">
+			<return type="void" />
+			<param index="0" name="scopeStrings" type="Array" />
+			<param index="1" name="hashedNonce" type="String" />
+			<description>
+				Same as [method signin_with_scopes], and sets the request's nonce to [param hashedNonce] (the SHA-256 hex of a random value you keep). The identity token then carries it, so your server can check the token was issued for this request. (BudgetBank fork.)
+			</description>
+		</method>
 	</methods>
 	<signals>
 		<signal name="authorization_completed">

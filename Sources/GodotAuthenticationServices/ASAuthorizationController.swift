@@ -26,9 +26,9 @@ class ASAuthorizationController: RefCounted, @unchecked Sendable {
     var controller: AuthenticationServices.ASAuthorizationController?
     var proxy: Proxy?
 
-    // maybe need to make this conform to ASAuthorizationControllerPresentationContextProviding
-    // but I should add support for the DisplayServer's UIViewController extraction
-    class Proxy: NSObject, ASAuthorizationControllerDelegate {
+    // BudgetBank fork: also the presentation context provider (key window), so
+    // the Apple sheet always has a window to attach to.
+    class Proxy: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
         weak var base: ASAuthorizationController?
         
         init(_ base: ASAuthorizationController) {
@@ -55,11 +55,45 @@ class ASAuthorizationController: RefCounted, @unchecked Sendable {
         func authorizationController(controller: AuthenticationServices.ASAuthorizationController, didCompleteWithError error: Error) {
             base?.authorization_failed.emit(error.localizedDescription)
         }
+
+        @MainActor
+        func presentationAnchor(for controller: AuthenticationServices.ASAuthorizationController) -> ASPresentationAnchor {
+#if canImport(UIKit)
+            let windows = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .flatMap { $0.windows }
+            return windows.first { $0.isKeyWindow } ?? windows.first ?? ASPresentationAnchor()
+#else
+            return NSApplication.shared.keyWindow ?? NSApplication.shared.windows.first ?? ASPresentationAnchor()
+#endif
+        }
     }
 
-    // The more specific version of it
-    @Callable
-    func signin_with_scopes(scopeStrings: VariantArray) {
+    // BudgetBank fork: one place that builds and runs the Apple ID request.
+    // hashedNonce (SHA-256 hex of a random value) is put on the request so the
+    // identity token carries it and the server can check it; nil = no nonce.
+    private func perform(scopes: [ASAuthorization.Scope], hashedNonce: String?) {
+        MainActor.assumeIsolated {
+            let provider = ASAuthorizationAppleIDProvider()
+            let request = provider.createRequest()
+            request.requestedScopes = scopes
+            if let hashedNonce, !hashedNonce.isEmpty {
+                request.nonce = hashedNonce
+            }
+
+            let controller = AuthenticationServices.ASAuthorizationController(authorizationRequests: [request])
+            self.controller = controller
+
+            let proxy = Proxy(self)
+            self.proxy = proxy
+
+            controller.delegate = proxy
+            controller.presentationContextProvider = proxy
+            controller.performRequests()
+        }
+    }
+
+    private func parseScopes(_ scopeStrings: VariantArray) -> [ASAuthorization.Scope] {
         var requestedScopes: [ASAuthorization.Scope] = []
         for vscope in scopeStrings {
             guard let scope = String(vscope) else { continue }
@@ -69,48 +103,24 @@ class ASAuthorizationController: RefCounted, @unchecked Sendable {
                 requestedScopes.append(.fullName)
             }
         }
+        return requestedScopes
+    }
 
-        MainActor.assumeIsolated {
-            let provider = ASAuthorizationAppleIDProvider()
-            let request = provider.createRequest()
-            
-            request.requestedScopes = requestedScopes
-            
-            let controller = AuthenticationServices.ASAuthorizationController(authorizationRequests: [request])
-            self.controller = controller
-            
-            let proxy = Proxy(self)
-            self.proxy = proxy
-            
-            controller.delegate = proxy
+    // BudgetBank fork: like signin_with_scopes, plus the SHA-256 hash of a nonce.
+    @Callable
+    func signin_with_scopes_and_nonce(scopeStrings: VariantArray, hashedNonce: String) {
+        perform(scopes: parseScopes(scopeStrings), hashedNonce: hashedNonce)
+    }
 
-            // Since most folks would use Godot, we might not need this
-            // controller.presentationContextProvider = proxy
-
-            controller.performRequests()
-        }
+    // The more specific version of it
+    @Callable
+    func signin_with_scopes(scopeStrings: VariantArray) {
+        perform(scopes: parseScopes(scopeStrings), hashedNonce: nil)
     }
 
     // Just a general purpose easy-to-use version
     @Callable
     func signin() {
-        MainActor.assumeIsolated {
-            let appleIDProvider = ASAuthorizationAppleIDProvider()
-            let request = appleIDProvider.createRequest()
-            request.requestedScopes = [.fullName, .email]
-
-            let controller = AuthenticationServices.ASAuthorizationController(authorizationRequests: [request])
-            self.controller = controller
-            
-            let proxy = Proxy(self)
-            self.proxy = proxy
-            
-            controller.delegate = proxy
-
-            // Since most folks would use Godot, we might not need this
-            //controller.presentationContextProvider = proxy
-
-            controller.performRequests()
-        }
+        perform(scopes: [.fullName, .email], hashedNonce: nil)
     }
 }
