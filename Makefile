@@ -379,6 +379,12 @@ split-package: split-build split-dist
 budgetbank-package:
 	$(MAKE) split-build DESTINATIONS="generic/platform=iOS generic/platform=iOS\ Simulator platform=macOS,arch=arm64"
 	$(MAKE) split-dist MACOS_X86_64=0
+	# CODE_SIGNING_ALLOWED=NO + install_name_tool leave the macOS frameworks
+	# without a valid signature; Apple silicon only loads signed code, so sign
+	# them ad hoc for the Godot editor (Xcode signs the iOS ones on export).
+	for fw in $(foreach f,$(SPLIT_FRAMEWORK_NAMES),$(CURDIR)/addons/$(f)/bin/$(f).framework) $(CURDIR)/addons/GodotApplePluginsRuntime/bin/$(SPLIT_RUNTIME_FRAMEWORK).framework; do \
+		codesign --force --sign - "$$fw"; \
+	done
 
 split-validate-built:
 	@set -e; \
