@@ -11,6 +11,10 @@ FRAMEWORK_NAMES ?= GodotApplePlugins
 # BudgetBank fork: only the two modules BudgetBank ships. Upstream's full list:
 # GodotApplePluginsAVFoundation GodotApplePluginsFoundation GodotApplePluginsGameCenter GodotApplePluginsStoreKit GodotApplePluginsAuthenticationServices GodotApplePluginsARKit GodotApplePluginsCoreMotion
 SPLIT_FRAMEWORK_NAMES ?= GodotApplePluginsAuthenticationServices GodotApplePluginsBudgetBankNative
+# BudgetBank fork: 0 = package without the Intel-Mac (macOS x86_64) frameworks.
+# BudgetBank only needs iOS + the Apple-silicon editor, and the x86_64 build
+# fails on this Mac with Xcode 26 even under Rosetta (see budgetbank-package).
+MACOS_X86_64 ?= 1
 SPLIT_RUNTIME_FRAMEWORK ?= SwiftGodotRuntime
 SPLIT_RUNTIME_RPATH ?= @loader_path/../../../../../GodotApplePluginsRuntime/bin
 SPLIT_RUNTIME_FRAMEWORK_RPATH ?= @loader_path/../../../GodotApplePluginsRuntime/bin
@@ -260,20 +264,22 @@ split-dist:
 		-framework "$$runtime_ios_device" \
 		-framework "$$runtime_ios_sim" \
 		-output $(CURDIR)/addons/GodotApplePluginsRuntime/bin/$(SPLIT_RUNTIME_FRAMEWORK).xcframework; \
-	if [ ! -d "$(DERIVED_DATA)x86_64/Build/Products/$(CONFIG)/PackageFrameworks/$(SPLIT_RUNTIME_FRAMEWORK).framework" ]; then \
-		echo "Missing $(SPLIT_RUNTIME_FRAMEWORK) macOS x86_64 build product. Run split-build for platform=macOS,arch=x86_64 before split-dist." >&2; \
-		exit 1; \
-	fi; \
-	rsync -a $(DERIVED_DATA)x86_64/Build/Products/$(CONFIG)/PackageFrameworks/$(SPLIT_RUNTIME_FRAMEWORK).framework/ $(CURDIR)/addons/GodotApplePluginsRuntime/bin/$(SPLIT_RUNTIME_FRAMEWORK)_x64.framework; \
-	runtime_x64_binary="$(CURDIR)/addons/GodotApplePluginsRuntime/bin/$(SPLIT_RUNTIME_FRAMEWORK)_x64.framework/Versions/A/$(SPLIT_RUNTIME_FRAMEWORK)"; \
-	if [ ! -f "$$runtime_x64_binary" ]; then \
-		echo "Missing $(SPLIT_RUNTIME_FRAMEWORK) macOS x86_64 runtime binary: $$runtime_x64_binary" >&2; \
-		exit 1; \
-	fi; \
-	install_name_tool -id "$(SPLIT_X64_RUNTIME_LOAD_DYLIB)" "$$runtime_x64_binary"; \
-	if ! otool -D "$$runtime_x64_binary" | grep -Fq "$(SPLIT_X64_RUNTIME_LOAD_DYLIB)"; then \
-		echo "Failed to set x86_64 runtime install name on $$runtime_x64_binary" >&2; \
-		exit 1; \
+	if [ "$(MACOS_X86_64)" = "1" ]; then \
+		if [ ! -d "$(DERIVED_DATA)x86_64/Build/Products/$(CONFIG)/PackageFrameworks/$(SPLIT_RUNTIME_FRAMEWORK).framework" ]; then \
+			echo "Missing $(SPLIT_RUNTIME_FRAMEWORK) macOS x86_64 build product. Run split-build for platform=macOS,arch=x86_64 before split-dist." >&2; \
+			exit 1; \
+		fi; \
+		rsync -a $(DERIVED_DATA)x86_64/Build/Products/$(CONFIG)/PackageFrameworks/$(SPLIT_RUNTIME_FRAMEWORK).framework/ $(CURDIR)/addons/GodotApplePluginsRuntime/bin/$(SPLIT_RUNTIME_FRAMEWORK)_x64.framework; \
+		runtime_x64_binary="$(CURDIR)/addons/GodotApplePluginsRuntime/bin/$(SPLIT_RUNTIME_FRAMEWORK)_x64.framework/Versions/A/$(SPLIT_RUNTIME_FRAMEWORK)"; \
+		if [ ! -f "$$runtime_x64_binary" ]; then \
+			echo "Missing $(SPLIT_RUNTIME_FRAMEWORK) macOS x86_64 runtime binary: $$runtime_x64_binary" >&2; \
+			exit 1; \
+		fi; \
+		install_name_tool -id "$(SPLIT_X64_RUNTIME_LOAD_DYLIB)" "$$runtime_x64_binary"; \
+		if ! otool -D "$$runtime_x64_binary" | grep -Fq "$(SPLIT_X64_RUNTIME_LOAD_DYLIB)"; then \
+			echo "Failed to set x86_64 runtime install name on $$runtime_x64_binary" >&2; \
+			exit 1; \
+		fi; \
 	fi; \
 	if [ ! -d "$(DERIVED_DATA)arm64/Build/Products/$(CONFIG)/PackageFrameworks/$(SPLIT_RUNTIME_FRAMEWORK).framework" ]; then \
 		echo "Missing $(SPLIT_RUNTIME_FRAMEWORK) macOS arm64 build product. Run split-build for platform=macOS,arch=arm64 before split-dist." >&2; \
@@ -348,27 +354,28 @@ split-dist:
 			echo "Missing macOS arm64 split framework binary: $$binary_arm" >&2; \
 			exit 1; \
 		fi; \
-		if [ ! -f "$$binary_x64" ]; then \
+		if [ "$(MACOS_X86_64)" = "1" ] && [ ! -f "$$binary_x64" ]; then \
 			echo "Missing macOS x86_64 split framework binary: $$binary_x64" >&2; \
 			exit 1; \
 		fi; \
 		set_runtime_rpath "$$binary_arm" "$(DERIVED_DATA)arm64/Build/Products/$(CONFIG)/PackageFrameworks" "$(SPLIT_RUNTIME_FRAMEWORK).framework" "$(SPLIT_RUNTIME_LOAD_DYLIB)"; \
-		set_runtime_rpath "$$binary_x64" "$(DERIVED_DATA)x86_64/Build/Products/$(CONFIG)/PackageFrameworks" "$(SPLIT_RUNTIME_FRAMEWORK)_x64.framework" "$(SPLIT_X64_RUNTIME_LOAD_DYLIB)"; \
+		if [ "$(MACOS_X86_64)" = "1" ]; then \
+			set_runtime_rpath "$$binary_x64" "$(DERIVED_DATA)x86_64/Build/Products/$(CONFIG)/PackageFrameworks" "$(SPLIT_RUNTIME_FRAMEWORK)_x64.framework" "$(SPLIT_X64_RUNTIME_LOAD_DYLIB)"; \
+		fi; \
 	done
 
 split-package: split-build split-dist
 
-# BudgetBank fork: the whole build on an Apple-silicon Mac, same as upstream's
-# release workflow (fix/x86-release-build-macros, 40b1014). The macOS x86_64
-# build must run entirely under Rosetta: SwiftGodot's macro plug-in is built
-# for the machine running xcodebuild, and natively that's arm64 while its
-# swift-syntax modules were built for x86_64 ("SwiftDriver
-# SwiftGodotMacroLibrary normal arm64" failure, 2026-10-07).
+# BudgetBank fork: the whole build on an Apple-silicon Mac, without the
+# Intel-Mac (macOS x86_64) frameworks. Building those fails at "SwiftDriver
+# SwiftGodotMacroLibrary normal arm64": SwiftGodot's macro plug-in is built
+# for the arm64 host while its swift-syntax modules are built for x86_64.
+# Upstream's release workflow runs that step under Rosetta (40b1014), but with
+# Xcode 26 the plug-in was still built for arm64 that way (2026-10-07), and
+# BudgetBank doesn't need Intel-Mac frameworks (iOS + Apple-silicon editor).
 budgetbank-package:
 	$(MAKE) split-build DESTINATIONS="generic/platform=iOS generic/platform=iOS\ Simulator platform=macOS,arch=arm64"
-	arch -x86_64 /usr/bin/true || { echo "Rosetta is needed for the x86_64 build: softwareupdate --install-rosetta --agree-to-license" >&2; exit 1; }
-	$(MAKE) split-build DESTINATIONS="platform=macOS,arch=x86_64" XCODEBUILD="arch -x86_64 xcodebuild"
-	$(MAKE) split-dist
+	$(MAKE) split-dist MACOS_X86_64=0
 
 split-validate-built:
 	@set -e; \
@@ -452,7 +459,7 @@ dist:
 				-framework $(DERIVED_DATA)simulator/Build/Products/$(CONFIG)-iphonesimulator/PackageFrameworks/$$framework.framework \
 				-output $(CURDIR)/addons/$$framework/bin/$${framework}.xcframework; \
 		fi; \
-		if [ -d "$(DERIVED_DATA)x86_64/Build/Products/$(CONFIG)/PackageFrameworks/$${framework}.framework" ]; then \
+		if [ "$(MACOS_X86_64)" = "1" ] && [ -d "$(DERIVED_DATA)x86_64/Build/Products/$(CONFIG)/PackageFrameworks/$${framework}.framework" ]; then \
 			rsync -a $(DERIVED_DATA)x86_64/Build/Products/$(CONFIG)/PackageFrameworks/$${framework}.framework/ $(CURDIR)/addons/$$framework/bin/$${framework}_x64.framework; \
 			copy_framework_docs "$$framework" "$(CURDIR)/addons/$$framework/bin/$${framework}_x64.framework/Resources/doc_classes"; \
 		fi; \

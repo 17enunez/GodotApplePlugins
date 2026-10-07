@@ -20,15 +20,15 @@ Plan: `BudgetBuddy/docs/NATIVE_IOS_PLAN.md`, Phase 2.
 ## Build (Mac, Xcode 26)
     make budgetbank-package
 
-On an Apple-silicon Mac, plain `make split-package` fails at the macOS x86_64
-step ("SwiftDriver SwiftGodotMacroLibrary normal arm64"): that step has to run
-under Rosetta, which `budgetbank-package` does (same as upstream's release
-workflow). Needs Rosetta: `softwareupdate --install-rosetta --agree-to-license`.
-Each target compiles swift-syntax from scratch, so the first build is slow and
-needs internet (packages are fetched per target).
+Builds iOS, iOS Simulator and Apple-silicon macOS, then packages without the
+Intel-Mac (macOS x86_64) frameworks (`MACOS_X86_64=0`). The x86_64 build fails
+on an Apple-silicon Mac at "SwiftDriver SwiftGodotMacroLibrary normal arm64"
+(SwiftGodot's macro plug-in builds for the arm64 host, its swift-syntax for
+x86_64); running it under Rosetta as upstream's CI does didn't help with
+Xcode 26 (2026-10-07). BudgetBank doesn't need it. Each target compiles
+swift-syntax from scratch, so the first build is slow and needs internet.
 
-Output: `addons/GodotApplePluginsAuthenticationServices`,
-`addons/GodotApplePluginsBudgetBankNative`, `addons/GodotApplePluginsRuntime`.
+If the targets are already built: `make split-dist MACOS_X86_64=0`.
 
 ## Install into BudgetBuddy
 Close Godot, then copy those three folders over `BudgetBuddy/addons/` with
