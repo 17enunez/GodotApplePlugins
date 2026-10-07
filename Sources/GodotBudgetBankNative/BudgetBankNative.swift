@@ -67,33 +67,89 @@ class BudgetBankNative: RefCounted, @unchecked Sendable {
             return true
         }
         guard let cls = NSClassFromString("GDTKeyboardInputView") else {
+            NSLog("BBNative caret: GDTKeyboardInputView class not found")
             return false
         }
-        let block: @convention(block) (UITextView, UITextView) -> Void = { view, textView in
-            // Only pure caret moves: if the text changed, Godot's own
-            // observeTextChange: is handling it.
-            let text = textView.text ?? ""
-            guard text == (view.value(forKey: "previousText") as? String ?? "") else {
-                return
-            }
-            let range = textView.selectedRange
-            let ns = text as NSString
-            guard range.location != NSNotFound, NSMaxRange(range) <= ns.length else {
-                return
-            }
-            let column = ns.substring(to: range.location).unicodeScalars.count
-            let length = ns.substring(with: range).unicodeScalars.count
-            // Keep Godot's typing diff in step with where the caret now is.
-            view.setValue(NSValue(range: range), forKey: "previousSelectedRange")
-            BudgetBankNative.caretTarget?.keyboard_caret_moved.emit(column, length)
+        // Path 1: the delegate callback (Godot sets the view as its own delegate).
+        let didChange: @convention(block) (UITextView, UITextView) -> Void = { _, textView in
+            BudgetBankNative.reportCaret(textView)
         }
-        caretHookInstalled = class_addMethod(
+        let addedDelegate = class_addMethod(
             cls,
             NSSelectorFromString("textViewDidChangeSelection:"),
-            imp_implementationWithBlock(block),
+            imp_implementationWithBlock(didChange),
             "v@:@"
         )
+        // Path 2: override the selection setter itself, in case UIKit never
+        // asks the delegate (it can cache what the delegate responds to).
+        var addedSetter = false
+        let setSel = NSSelectorFromString("setSelectedTextRange:")
+        if let superMethod = class_getInstanceMethod(UITextView.self, setSel) {
+            typealias SetRangeFn = @convention(c) (AnyObject, Selector, UITextRange?) -> Void
+            let callSuper = unsafeBitCast(method_getImplementation(superMethod), to: SetRangeFn.self)
+            let setter: @convention(block) (UITextView, UITextRange?) -> Void = { view, range in
+                callSuper(view, setSel, range)
+                BudgetBankNative.reportCaret(view)
+            }
+            addedSetter = class_addMethod(cls, setSel, imp_implementationWithBlock(setter), "v@:@")
+        }
+        // UITextView may have cached the delegate's answers when Godot set it,
+        // before our method existed, so set the same delegate again.
+        var refreshed = false
+        for scene in UIApplication.shared.connectedScenes {
+            guard let windowScene = scene as? UIWindowScene else { continue }
+            for window in windowScene.windows {
+                if let tv = findView(of: cls, in: window) {
+                    let d = tv.delegate
+                    tv.delegate = nil
+                    tv.delegate = d
+                    refreshed = true
+                }
+            }
+        }
+        NSLog("BBNative caret: delegate hook %d, setter hook %d, delegate refreshed %d",
+              addedDelegate ? 1 : 0, addedSetter ? 1 : 0, refreshed ? 1 : 0)
+        caretHookInstalled = addedDelegate || addedSetter
         return caretHookInstalled
+    }
+
+    /// Sends the keyboard view's caret to Godot when only the caret moved.
+    @MainActor
+    private static func reportCaret(_ view: UITextView) {
+        // If the text changed, Godot's own observeTextChange: is handling it.
+        let text = view.text ?? ""
+        guard text == (view.value(forKey: "previousText") as? String ?? "") else {
+            return
+        }
+        let range = view.selectedRange
+        let ns = text as NSString
+        guard range.location != NSNotFound, NSMaxRange(range) <= ns.length else {
+            return
+        }
+        // Both hooks can fire for one move; only send real changes.
+        if let prev = (view.value(forKey: "previousSelectedRange") as? NSValue)?.rangeValue,
+           NSEqualRanges(prev, range) {
+            return
+        }
+        let column = ns.substring(to: range.location).unicodeScalars.count
+        let length = ns.substring(with: range).unicodeScalars.count
+        // Keep Godot's typing diff in step with where the caret now is.
+        view.setValue(NSValue(range: range), forKey: "previousSelectedRange")
+        NSLog("BBNative caret: moved to %d (+%d)", column, length)
+        BudgetBankNative.caretTarget?.keyboard_caret_moved.emit(column, length)
+    }
+
+    @MainActor
+    private static func findView(of cls: AnyClass, in view: UIView) -> UITextView? {
+        if view.isKind(of: cls) {
+            return view as? UITextView
+        }
+        for sub in view.subviews {
+            if let found = findView(of: cls, in: sub) {
+                return found
+            }
+        }
+        return nil
     }
 #endif
 }
