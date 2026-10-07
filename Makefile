@@ -358,6 +358,18 @@ split-dist:
 
 split-package: split-build split-dist
 
+# BudgetBank fork: the whole build on an Apple-silicon Mac, same as upstream's
+# release workflow (fix/x86-release-build-macros, 40b1014). The macOS x86_64
+# build must run entirely under Rosetta: SwiftGodot's macro plug-in is built
+# for the machine running xcodebuild, and natively that's arm64 while its
+# swift-syntax modules were built for x86_64 ("SwiftDriver
+# SwiftGodotMacroLibrary normal arm64" failure, 2026-10-07).
+budgetbank-package:
+	$(MAKE) split-build DESTINATIONS="generic/platform=iOS generic/platform=iOS\ Simulator platform=macOS,arch=arm64"
+	arch -x86_64 /usr/bin/true || { echo "Rosetta is needed for the x86_64 build: softwareupdate --install-rosetta --agree-to-license" >&2; exit 1; }
+	$(MAKE) split-build DESTINATIONS="platform=macOS,arch=x86_64" XCODEBUILD="arch -x86_64 xcodebuild"
+	$(MAKE) split-dist
+
 split-validate-built:
 	@set -e; \
 	project_dir=$$(mktemp -d "$${TMPDIR:-/tmp}/godot-split-validate.XXXXXX"); \
