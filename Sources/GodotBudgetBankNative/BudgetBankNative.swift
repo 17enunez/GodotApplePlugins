@@ -93,9 +93,13 @@ class BudgetBankNative: RefCounted, @unchecked Sendable {
             }
             addedSetter = class_addMethod(cls, setSel, imp_implementationWithBlock(setter), "v@:@")
         }
+        // Path 3 (diagnostic): log the space-bar trackpad's own calls, so a
+        // device run shows whether iOS sends drags and where they land.
+        let addedFloating = addFloatingCursorLogging(to: cls)
         // UITextView may have cached the delegate's answers when Godot set it,
         // before our method existed, so set the same delegate again.
         var refreshed = false
+        var sized = false
         for scene in UIApplication.shared.connectedScenes {
             guard let windowScene = scene as? UIWindowScene else { continue }
             for window in windowScene.windows {
@@ -104,11 +108,13 @@ class BudgetBankNative: RefCounted, @unchecked Sendable {
                     tv.delegate = nil
                     tv.delegate = d
                     refreshed = true
+                    sized = giveKeyboardViewALayout(tv)
                 }
             }
         }
-        NSLog("BBNative caret: delegate hook %d, setter hook %d, delegate refreshed %d",
-              addedDelegate ? 1 : 0, addedSetter ? 1 : 0, refreshed ? 1 : 0)
+        NSLog("BBNative caret: delegate hook %d, setter hook %d, delegate refreshed %d, floating log %d, sized %d",
+              addedDelegate ? 1 : 0, addedSetter ? 1 : 0, refreshed ? 1 : 0,
+              addedFloating ? 1 : 0, sized ? 1 : 0)
         caretHookInstalled = addedDelegate || addedSetter
         return caretHookInstalled
     }
@@ -138,6 +144,84 @@ class BudgetBankNative: RefCounted, @unchecked Sendable {
         NSLog("BBNative caret: moved to %d (+%d)", column, length)
         BudgetBankNative.caretTarget?.keyboard_caret_moved.emit(column, length)
     }
+
+    /// Godot creates the keyboard view with `[GDTKeyboardInputView new]`
+    /// (0x0 frame, hidden) and never sizes it. The space-bar trackpad moves a
+    /// floating cursor in points and asks the view which character is under
+    /// it; with no width that answer never changes, so the caret never moves.
+    /// A wide frame gives the text a real layout (one line per line of text,
+    /// no wrapping). The view stays hidden, so nothing shows on screen.
+    @MainActor
+    private static func giveKeyboardViewALayout(_ tv: UITextView) -> Bool {
+        tv.frame = CGRect(x: 0, y: 0, width: 10_000, height: 2_000)
+        // Same size as a native iOS text field, so a drag moves the caret
+        // about as far per character as it would in a normal app.
+        tv.font = UIFont.systemFont(ofSize: 17)
+        tv.textContainerInset = .zero
+        tv.isScrollEnabled = false
+        return tv.bounds.width > 0
+    }
+
+    /// Overrides UITextView's floating-cursor methods on Godot's keyboard view:
+    /// each calls UITextView's own version, then logs what happened.
+    /// Diagnostic only; remove once the caret works.
+    @MainActor
+    private static func addFloatingCursorLogging(to cls: AnyClass) -> Bool {
+        typealias PointFn = @convention(c) (AnyObject, Selector, CGPoint) -> Void
+        typealias VoidFn = @convention(c) (AnyObject, Selector) -> Void
+        var added = 0
+
+        let beginSel = NSSelectorFromString("beginFloatingCursorAtPoint:")
+        if let m = class_getInstanceMethod(UITextView.self, beginSel) {
+            let callSuper = unsafeBitCast(method_getImplementation(m), to: PointFn.self)
+            let block: @convention(block) (UITextView, CGPoint) -> Void = { view, point in
+                callSuper(view, beginSel, point)
+                BudgetBankNative.lastLoggedOffset = -1
+                NSLog("BBNative float begin at (%.0f, %.0f), view %.0fx%.0f, hidden %d, selection %d+%d",
+                      point.x, point.y, view.bounds.width, view.bounds.height,
+                      view.isHidden ? 1 : 0, view.selectedRange.location, view.selectedRange.length)
+            }
+            if class_addMethod(cls, beginSel, imp_implementationWithBlock(block), "v@:{CGPoint=dd}") { added += 1 }
+        }
+
+        let updateSel = NSSelectorFromString("updateFloatingCursorAtPoint:")
+        if let m = class_getInstanceMethod(UITextView.self, updateSel) {
+            let callSuper = unsafeBitCast(method_getImplementation(m), to: PointFn.self)
+            let block: @convention(block) (UITextView, CGPoint) -> Void = { view, point in
+                callSuper(view, updateSel, point)
+                // Updates come many times a second: log only when the
+                // character under the point changes.
+                var offset = -2
+                if let pos = view.closestPosition(to: point) {
+                    offset = view.offset(from: view.beginningOfDocument, to: pos)
+                }
+                if offset != BudgetBankNative.lastLoggedOffset {
+                    BudgetBankNative.lastLoggedOffset = offset
+                    NSLog("BBNative float update at (%.0f, %.0f): char under point %d, selection %d+%d",
+                          point.x, point.y, offset,
+                          view.selectedRange.location, view.selectedRange.length)
+                }
+            }
+            if class_addMethod(cls, updateSel, imp_implementationWithBlock(block), "v@:{CGPoint=dd}") { added += 1 }
+        }
+
+        let endSel = NSSelectorFromString("endFloatingCursor")
+        if let m = class_getInstanceMethod(UITextView.self, endSel) {
+            let callSuper = unsafeBitCast(method_getImplementation(m), to: VoidFn.self)
+            let block: @convention(block) (UITextView) -> Void = { view in
+                callSuper(view, endSel)
+                NSLog("BBNative float end, selection %d+%d",
+                      view.selectedRange.location, view.selectedRange.length)
+                // In case UIKit set the final range without the setter.
+                BudgetBankNative.reportCaret(view)
+            }
+            if class_addMethod(cls, endSel, imp_implementationWithBlock(block), "v@:") { added += 1 }
+        }
+        NSLog("BBNative caret: floating cursor methods hooked %d/3", added)
+        return added == 3
+    }
+
+    nonisolated(unsafe) private static var lastLoggedOffset = -1
 
     @MainActor
     private static func findView(of cls: AnyClass, in view: UIView) -> UITextView? {

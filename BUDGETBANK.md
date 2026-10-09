@@ -10,7 +10,10 @@ Plan: `BudgetBuddy/docs/NATIVE_IOS_PLAN.md`, Phase 2.
 - `ASAuthorizationController` now sets `presentationContextProvider` (key window).
 - New module `GodotApplePluginsBudgetBankNative` (class `BudgetBankNative`):
   `ping()`, `request_review()`, `install_keyboard_caret_hook()` +
-  signal `keyboard_caret_moved(column, length)`.
+  signal `keyboard_caret_moved(column, length)`. The caret hook also gives
+  Godot's hidden keyboard view a real size (Godot makes it 0x0, so the
+  space-bar trackpad can't move its caret) and, for now, logs the trackpad's
+  floating-cursor calls (`BBNative float ...`) for device testing.
 - `Makefile`: `SPLIT_FRAMEWORK_NAMES` defaults to the two modules BudgetBank
   ships (AuthenticationServices + BudgetBankNative).
 - `Makefile`: `XCODEBUILD_SETTINGS` defaults to `-skipPackagePluginValidation
