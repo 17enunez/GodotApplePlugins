@@ -4,15 +4,15 @@ entry_symbol = "godot_apple_plugins_authentication_services_start"
 compatibility_minimum = 4.2
 
 [libraries]
+; BudgetBank 2026-10-10: plain "macos" (was macos.arm64 + macos.x86_64). No Intel build exists, and a
+; universal macOS export skipped the plugin, so the exported app crashed at launch (NSBundle). Apple silicon only.
 ios = "res://addons/GodotApplePluginsAuthenticationServices/bin/GodotApplePluginsAuthenticationServices.xcframework"
 linux.arm64 = "res://addons/GodotApplePluginsAuthenticationServices/bin/godot_apple_plugins_authentication_services_stub.linux.arm64.so"
 linux.x86_64 = "res://addons/GodotApplePluginsAuthenticationServices/bin/godot_apple_plugins_authentication_services_stub.linux.x86_64.so"
-macos.arm64 = "res://addons/GodotApplePluginsAuthenticationServices/bin/GodotApplePluginsAuthenticationServices.framework"
-macos.x86_64 = "res://addons/GodotApplePluginsAuthenticationServices/bin/GodotApplePluginsAuthenticationServices_x64.framework"
+macos = "res://addons/GodotApplePluginsAuthenticationServices/bin/GodotApplePluginsAuthenticationServices.framework"
 windows.arm64 = "res://addons/GodotApplePluginsAuthenticationServices/bin/godot_apple_plugins_authentication_services_stub.windows.arm64.dll"
 windows.x86_64 = "res://addons/GodotApplePluginsAuthenticationServices/bin/godot_apple_plugins_authentication_services_stub.windows.x86_64.dll"
 
 [dependencies]
 ios = { "res://addons/GodotApplePluginsRuntime/bin/SwiftGodotRuntime.xcframework": "" }
-macos.arm64 = { "res://addons/GodotApplePluginsRuntime/bin/SwiftGodotRuntime.framework": "" }
-macos.x86_64 = { "res://addons/GodotApplePluginsRuntime/bin/SwiftGodotRuntime_x64.framework": "" }
+macos = { "res://addons/GodotApplePluginsRuntime/bin/SwiftGodotRuntime.framework": "" }

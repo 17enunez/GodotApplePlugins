@@ -13,6 +13,10 @@ import UIKit
 import StoreKit
 import ObjectiveC
 #endif
+#if os(iOS) && canImport(LinkKit)
+import LinkKit   // Plaid Link SDK (iOS only; Package.swift adds it for iOS)
+import WebKit    // PlaidLinkHost: find Link's web view to dismiss the keyboard
+#endif
 
 @Godot
 class BudgetBankNative: RefCounted, @unchecked Sendable {
@@ -20,6 +24,17 @@ class BudgetBankNative: RefCounted, @unchecked Sendable {
     /// in characters (Unicode scalars, like Godot's String); length > 0 = selection.
     @Signal("column", "length")
     var keyboard_caret_moved: SignalWithArguments<Int, Int>
+
+    /// Plaid Link connected a bank. `public_token` goes to the server
+    /// (plaid-exchange-token, with the session_id from plaid-link-token).
+    /// `metadata` is a text dump of Plaid's metadata, for logging only.
+    @Signal("public_token", "metadata")
+    var plaid_link_success: SignalWithArguments<String, String>
+
+    /// Plaid Link closed without connecting. `error_code` is empty when the
+    /// player just closed it; otherwise Plaid's code and message.
+    @Signal("error_code", "error_message", "metadata")
+    var plaid_link_exit: SignalWithArguments<String, String, String>
 
     /// Smoke test: returns "pong" when the module is loaded.
     @Callable
@@ -41,6 +56,82 @@ class BudgetBankNative: RefCounted, @unchecked Sendable {
         }
 #endif
     }
+
+    /// Opens Plaid Link (LinkKit 7) over the game with a link_token from the
+    /// plaid-link-token Edge Function. The result comes back as
+    /// plaid_link_success / plaid_link_exit. Returns false when Link can't
+    /// open (not iOS, no window to present from, or Plaid rejects the token).
+    @Callable
+    func open_plaid_link(link_token: String) -> Bool {
+#if os(iOS) && canImport(LinkKit)
+        return MainActor.assumeIsolated { self.openPlaidLink(token: link_token) }
+#else
+        return false
+#endif
+    }
+
+#if os(iOS) && canImport(LinkKit)
+    // LinkKit 7: the session must stay alive for the whole Link flow.
+    nonisolated(unsafe) private static var plaidSession: PlaidLinkSession?
+
+    @MainActor
+    private func openPlaidLink(token: String) -> Bool {
+        guard let presenter = BudgetBankNative.topViewController() else {
+            NSLog("BBNative plaid: no view controller to present from")
+            return false
+        }
+        let target = self
+        let configuration = LinkTokenConfiguration(
+            token: token,
+            onSuccess: { success in
+                BudgetBankNative.plaidSession = nil
+                NSLog("BBNative plaid: success")
+                target.plaid_link_success.emit(success.publicToken, String(describing: success.metadata))
+            },
+            onExit: { exit in
+                BudgetBankNative.plaidSession = nil
+                let code = exit.error.map { "\($0.errorCode)" } ?? ""
+                let message = exit.error?.errorMessage ?? ""
+                NSLog("BBNative plaid: exit %@", code)
+                target.plaid_link_exit.emit(code, message, String(describing: exit.metadata))
+            },
+            onEvent: nil,
+            onLoad: {}
+        )
+        do {
+            let session = try Plaid.createPlaidLinkSession(configuration: configuration)
+            BudgetBankNative.plaidSession = session
+            // Present Link inside PlaidLinkHost so it stays inside the safe area
+            // (the game is landscape: full-screen Link ran under the camera
+            // cutout) and taps outside a field close the keyboard.
+            session.open(using: .custom({ linkViewController in
+                MainActor.assumeIsolated {
+                    presenter.present(PlaidLinkHost(content: linkViewController), animated: true)
+                }
+            }, { _ in
+                MainActor.assumeIsolated {
+                    presenter.dismiss(animated: true)
+                }
+            }))
+            return true
+        } catch {
+            NSLog("BBNative plaid: couldn't create the Link session: %@", "\(error)")
+            return false
+        }
+    }
+
+    /// The view controller on top (Godot's, or whatever it presented).
+    @MainActor
+    private static func topViewController() -> UIViewController? {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let windows = scenes.flatMap { $0.windows }
+        var vc = (windows.first { $0.isKeyWindow } ?? windows.first)?.rootViewController
+        while let presented = vc?.presentedViewController {
+            vc = presented
+        }
+        return vc
+    }
+#endif
 
     /// Godot 4.6's hidden keyboard view (GDTKeyboardInputView, a UITextView)
     /// doesn't implement textViewDidChangeSelection:, so caret moves made with
@@ -163,8 +254,10 @@ class BudgetBankNative: RefCounted, @unchecked Sendable {
     }
 
     /// Overrides UITextView's floating-cursor methods on Godot's keyboard view:
-    /// each calls UITextView's own version, then logs what happened.
-    /// Diagnostic only; remove once the caret works.
+    /// each calls UITextView's own version, then logs what happened. The
+    /// update also moves the caret under the trackpad point itself, because
+    /// UIKit doesn't for this hidden view (seen on the iPhone 2026-10-09).
+    /// Remove the logging once the caret works.
     @MainActor
     private static func addFloatingCursorLogging(to cls: AnyClass) -> Bool {
         typealias PointFn = @convention(c) (AnyObject, Selector, CGPoint) -> Void
@@ -177,6 +270,9 @@ class BudgetBankNative: RefCounted, @unchecked Sendable {
             let block: @convention(block) (UITextView, CGPoint) -> Void = { view, point in
                 callSuper(view, beginSel, point)
                 BudgetBankNative.lastLoggedOffset = -1
+                BudgetBankNative.floatUpdates = 0
+                BudgetBankNative.floatMinX = point.x
+                BudgetBankNative.floatMaxX = point.x
                 NSLog("BBNative float begin at (%.0f, %.0f), view %.0fx%.0f, hidden %d, selection %d+%d",
                       point.x, point.y, view.bounds.width, view.bounds.height,
                       view.isHidden ? 1 : 0, view.selectedRange.location, view.selectedRange.length)
@@ -189,17 +285,32 @@ class BudgetBankNative: RefCounted, @unchecked Sendable {
             let callSuper = unsafeBitCast(method_getImplementation(m), to: PointFn.self)
             let block: @convention(block) (UITextView, CGPoint) -> Void = { view, point in
                 callSuper(view, updateSel, point)
-                // Updates come many times a second: log only when the
-                // character under the point changes.
+                BudgetBankNative.floatUpdates += 1
+                BudgetBankNative.floatMinX = min(BudgetBankNative.floatMinX, point.x)
+                BudgetBankNative.floatMaxX = max(BudgetBankNative.floatMaxX, point.x)
                 var offset = -2
                 if let pos = view.closestPosition(to: point) {
                     offset = view.offset(from: view.beginningOfDocument, to: pos)
                 }
-                if offset != BudgetBankNative.lastLoggedOffset {
+                // Updates come many times a second: log when the character
+                // under the point changes, and every 15th update.
+                if offset != BudgetBankNative.lastLoggedOffset || BudgetBankNative.floatUpdates % 15 == 0 {
                     BudgetBankNative.lastLoggedOffset = offset
-                    NSLog("BBNative float update at (%.0f, %.0f): char under point %d, selection %d+%d",
-                          point.x, point.y, offset,
+                    NSLog("BBNative float update #%d at (%.0f, %.0f): char under point %d, selection %d+%d",
+                          BudgetBankNative.floatUpdates, point.x, point.y, offset,
                           view.selectedRange.location, view.selectedRange.length)
+                }
+                // Fallback: UIKit doesn't move the caret of Godot's hidden
+                // keyboard view during the drag, so put it under the point
+                // ourselves (UTF-16 offsets, like selectedRange). reportCaret
+                // sends it to Godot and skips it if nothing changed.
+                let length = (view.text ?? "").utf16.count
+                if offset >= 0 && offset <= length {
+                    let wanted = NSRange(location: offset, length: 0)
+                    if !NSEqualRanges(view.selectedRange, wanted) {
+                        view.selectedRange = wanted
+                    }
+                    BudgetBankNative.reportCaret(view)
                 }
             }
             if class_addMethod(cls, updateSel, imp_implementationWithBlock(block), "v@:{CGPoint=dd}") { added += 1 }
@@ -210,8 +321,9 @@ class BudgetBankNative: RefCounted, @unchecked Sendable {
             let callSuper = unsafeBitCast(method_getImplementation(m), to: VoidFn.self)
             let block: @convention(block) (UITextView) -> Void = { view in
                 callSuper(view, endSel)
-                NSLog("BBNative float end, selection %d+%d",
-                      view.selectedRange.location, view.selectedRange.length)
+                NSLog("BBNative float end, selection %d+%d, %d updates, x %.0f..%.0f",
+                      view.selectedRange.location, view.selectedRange.length,
+                      BudgetBankNative.floatUpdates, BudgetBankNative.floatMinX, BudgetBankNative.floatMaxX)
                 // In case UIKit set the final range without the setter.
                 BudgetBankNative.reportCaret(view)
             }
@@ -222,6 +334,9 @@ class BudgetBankNative: RefCounted, @unchecked Sendable {
     }
 
     nonisolated(unsafe) private static var lastLoggedOffset = -1
+    nonisolated(unsafe) private static var floatUpdates = 0
+    nonisolated(unsafe) private static var floatMinX: CGFloat = 0
+    nonisolated(unsafe) private static var floatMaxX: CGFloat = 0
 
     @MainActor
     private static func findView(of cls: AnyClass, in view: UIView) -> UITextView? {
@@ -237,3 +352,98 @@ class BudgetBankNative: RefCounted, @unchecked Sendable {
     }
 #endif
 }
+
+#if os(iOS) && canImport(LinkKit)
+/// Full-screen container for Plaid Link's view controller.
+/// - Link's view is pinned to the safe area (left/right/top), so in landscape
+///   nothing sits under the camera cutout; the white background fills the rest.
+/// - A tap that doesn't land on a field, button or link closes the keyboard,
+///   and dragging Link's page closes it too.
+@MainActor
+private final class PlaidLinkHost: UIViewController, UIGestureRecognizerDelegate {
+    private let content: UIViewController
+
+    init(content: UIViewController) {
+        self.content = content
+        super.init(nibName: nil, bundle: nil)
+        modalPresentationStyle = .fullScreen
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .white
+        addChild(content)
+        content.view.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(content.view)
+        let safe = view.safeAreaLayoutGuide
+        NSLayoutConstraint.activate([
+            content.view.leadingAnchor.constraint(equalTo: safe.leadingAnchor),
+            content.view.trailingAnchor.constraint(equalTo: safe.trailingAnchor),
+            content.view.topAnchor.constraint(equalTo: safe.topAnchor),
+            content.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+        content.didMove(toParent: self)
+
+        let tap = UITapGestureRecognizer(target: self, action: #selector(tapped(_:)))
+        tap.cancelsTouchesInView = false   // the tap still reaches Link
+        tap.delegate = self
+        view.addGestureRecognizer(tap)
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        for web in Self.webViews(in: view) {
+            web.scrollView.keyboardDismissMode = .onDrag
+        }
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                           shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+        true
+    }
+
+    @objc private func tapped(_ recognizer: UITapGestureRecognizer) {
+        let point = recognizer.location(in: view)
+        let hit = view.hitTest(point, with: nil)
+        // Native controls: leave them alone.
+        if hit is UITextField || hit is UITextView || hit is UIControl {
+            return
+        }
+        guard let web = Self.webViews(in: view).first(where: { hit?.isDescendant(of: $0) ?? false }) else {
+            view.endEditing(true)
+            return
+        }
+        // Inside Link's web page: ask the page whether the tap hit something
+        // interactive; if not, blur the focused field and close the keyboard.
+        let p = recognizer.location(in: web)
+        let js = """
+        (function(){var e=document.elementFromPoint(\(p.x),\(p.y));
+        while(e){var t=e.tagName;
+        if(t==='INPUT'||t==='TEXTAREA'||t==='SELECT'||t==='BUTTON'||t==='A'||t==='LABEL'||t==='IFRAME'||e.isContentEditable||e.getAttribute('role')==='button'||e.getAttribute('role')==='option'){return true;}
+        e=e.parentElement;}
+        if(document.activeElement){document.activeElement.blur();}
+        return false;})()
+        """
+        web.evaluateJavaScript(js) { [weak self] result, _ in
+            if (result as? Bool) != true {
+                self?.view.endEditing(true)
+            }
+        }
+    }
+
+    private static func webViews(in root: UIView) -> [WKWebView] {
+        var found: [WKWebView] = []
+        var stack: [UIView] = [root]
+        while let v = stack.popLast() {
+            if let web = v as? WKWebView {
+                found.append(web)
+            } else {
+                stack.append(contentsOf: v.subviews)
+            }
+        }
+        return found
+    }
+}
+#endif

@@ -4,7 +4,7 @@
 		Native iOS features for BudgetBank (BudgetBank fork).
 	</brief_description>
 	<description>
-		Review prompt and the iOS keyboard's space-bar caret, which Godot 4.6 does not forward. Used by BudgetBank's Native.gd.
+		Review prompt, Plaid Link (LinkKit), and the iOS keyboard's space-bar caret, which Godot 4.6 does not forward. Used by BudgetBank's Native.gd.
 	</description>
 	<tutorials>
 	</tutorials>
@@ -13,6 +13,13 @@
 			<return type="bool" />
 			<description>
 				Forwards caret moves made with the iOS keyboard's space-bar trackpad as [signal keyboard_caret_moved]. Returns [code]true[/code] when installed. iOS only.
+			</description>
+		</method>
+		<method name="open_plaid_link">
+			<return type="bool" />
+			<param index="0" name="link_token" type="String" />
+			<description>
+				Opens Plaid Link over the game with a link token from the server. The result arrives as [signal plaid_link_success] or [signal plaid_link_exit]. Returns [code]false[/code] if Link can't open. iOS only.
 			</description>
 		</method>
 		<method name="ping">
@@ -34,6 +41,21 @@
 			<param index="1" name="length" type="int" />
 			<description>
 				The caret moved to [param column] (characters); [param length] &gt; 0 when text is selected.
+			</description>
+		</signal>
+		<signal name="plaid_link_exit">
+			<param index="0" name="error_code" type="String" />
+			<param index="1" name="error_message" type="String" />
+			<param index="2" name="metadata" type="String" />
+			<description>
+				Plaid Link closed without connecting a bank. [param error_code] is empty when the player closed it.
+			</description>
+		</signal>
+		<signal name="plaid_link_success">
+			<param index="0" name="public_token" type="String" />
+			<param index="1" name="metadata" type="String" />
+			<description>
+				Plaid Link connected a bank. Send [param public_token] to the server to finish the connection.
 			</description>
 		</signal>
 	</signals>

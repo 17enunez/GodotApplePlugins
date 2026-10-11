@@ -43,3 +43,18 @@ split-dist's `install_name_tool` can't add the runtime rpath and stops with
 Close Godot, then copy those three folders over `BudgetBuddy/addons/` with
 Finder or `ditto` (never the AssetLib tab: it flattens the framework symlinks).
 Check: `file -L addons/*/bin/*.framework/*` says Mach-O.
+
+## 2026-10-10: `.gdextension` macOS entries
+`addons/GodotApplePluginsAuthenticationServices/*.gdextension` and `addons/GodotApplePluginsBudgetBankNative/*.gdextension`
+list the Mac framework under plain `macos` (was `macos.arm64` + `macos.x86_64`). There is no Intel build
+(`MACOS_X86_64=0`), and with the arch-specific keys a universal macOS export of BudgetBuddy bundled neither
+framework, so the exported app aborted at launch (`NSBundle initWithURL` in `OS_MacOS::open_dynamic_library`).
+BudgetBuddy's installed copies already have this change. Not committed yet (commit from the Mac: `git commit` and `git push fork budgetbank`).
+
+## 2026-10-10: Plaid Link (Phase 5)
+- `Package.swift`: `plaid-link-ios-spm` **exact 7.2.0**, a dependency of `GodotApplePluginsBudgetBankNative` on iOS only (`condition: .when(platforms: [.iOS])`).
+- `Sources/GodotBudgetBankNative/BudgetBankNative.swift`: `open_plaid_link(link_token) -> Bool`, signals `plaid_link_success(public_token, metadata)` and `plaid_link_exit(error_code, error_message, metadata)` (LinkKit 7: `LinkTokenConfiguration`, `Plaid.createPlaidLinkSession`, `session.open(using: .viewController(...))`; the session is kept until Link finishes). Everything is inside `#if os(iOS) && canImport(LinkKit)`; macOS returns false.
+- LinkKit is a dynamic framework: `make budgetbank-package` copies `LinkKit.xcframework` from `.xcodebuild/SourcePackages/artifacts` into `addons/GodotApplePluginsBudgetBankNative/bin/`, and the module's `.gdextension` lists it under `[dependencies] ios`, so Godot embeds it in the app (not embedded = crash at launch on a device).
+- `relink_without_swiftsyntax.sh`: adds `-framework LinkKit` when relinking this module for iOS.
+- `doc_classes/BudgetBankNative.xml`: the new method + signals (stubs are generated from it).
+- Written without compiling (no Xcode where it was written). First `make budgetbank-package` checks it.

@@ -209,7 +209,11 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(url: "https://github.com/migueldeicaza/SwiftGodot", revision: "f528ba67accbe3cca06c1d401c8f9d7c17022f63")
+        .package(url: "https://github.com/migueldeicaza/SwiftGodot", revision: "f528ba67accbe3cca06c1d401c8f9d7c17022f63"),
+        // BudgetBank fork: Plaid Link SDK for BudgetBankNative (Phase 5). Pinned:
+        // 7.2.0 (2026-09-22); LinkKit is a dynamic framework, shipped next to the
+        // module by `make budgetbank-package` and embedded via the .gdextension.
+        .package(url: "https://github.com/plaid/plaid-link-ios-spm.git", exact: "7.2.0")
         // For local development:
         //.package(path: "../SwiftGodot")
     ],
@@ -272,10 +276,16 @@ let package = Package(
             exclude: ["CoreMotionGuide.md"],
             resources: coreMotionDocResources
         ),
-        // BudgetBank fork: review prompt + keyboard caret hook (see Sources/GodotBudgetBankNative)
-        pluginTarget(
+        // BudgetBank fork: review prompt, keyboard caret hook, Plaid Link (see Sources/GodotBudgetBankNative)
+        .target(
             name: "GodotApplePluginsBudgetBankNative",
-            path: "Sources/GodotBudgetBankNative"
+            dependencies: [
+                runtimeDependency,
+                .product(name: "LinkKit", package: "plaid-link-ios-spm", condition: .when(platforms: [.iOS])),
+            ],
+            path: "Sources/GodotBudgetBankNative",
+            swiftSettings: swiftSettings,
+            linkerSettings: linkerSettings
         ),
         .executableTarget(
             name: "GodotApplePluginsStubGenerator"

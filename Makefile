@@ -385,6 +385,15 @@ budgetbank-package:
 	for fw in $(foreach f,$(SPLIT_FRAMEWORK_NAMES),$(CURDIR)/addons/$(f)/bin/$(f).framework) $(CURDIR)/addons/GodotApplePluginsRuntime/bin/$(SPLIT_RUNTIME_FRAMEWORK).framework; do \
 		codesign --force --sign - "$$fw"; \
 	done
+	# Plaid LinkKit (dynamic framework, iOS only, used by BudgetBankNative):
+	# ship its xcframework next to the module. The module's .gdextension lists
+	# it as an iOS dependency, so Godot's iOS export embeds it in the app
+	# (without it the app crashes at launch on a device).
+	@lk=$$(find "$(DERIVED_DATA)/SourcePackages/artifacts" -maxdepth 5 -type d -name LinkKit.xcframework -not -path '*__MACOSX*' 2>/dev/null | head -1); \
+	if [ -z "$$lk" ] || [ ! -f "$$lk/Info.plist" ]; then echo "LinkKit.xcframework (with Info.plist) not found under $(DERIVED_DATA)/SourcePackages/artifacts (did split-build resolve plaid-link-ios-spm?)" >&2; exit 1; fi; \
+	rm -rf "$(CURDIR)/addons/GodotApplePluginsBudgetBankNative/bin/LinkKit.xcframework"; \
+	ditto "$$lk" "$(CURDIR)/addons/GodotApplePluginsBudgetBankNative/bin/LinkKit.xcframework"; \
+	echo "Copied $$lk"
 
 split-validate-built:
 	@set -e; \

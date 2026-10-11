@@ -293,6 +293,13 @@ if [[ -n "$linker_resp" ]]; then
 	link_args+=("@$linker_resp")
 fi
 
+# BudgetBank fork: BudgetBankNative links Plaid's LinkKit (a dynamic binary
+# framework) on iOS. Swift's autolinking should already ask for it; naming it
+# here makes sure the relinked binary still loads @rpath/LinkKit.framework.
+if [[ "$FRAMEWORK" == "GodotApplePluginsBudgetBankNative" && "$platform_lc" == "ios" && -d "$PRODUCTS_DIR/LinkKit.framework" ]]; then
+	link_args+=("-F$PRODUCTS_DIR" "-framework" "LinkKit")
+fi
+
 echo "Relinking $FRAMEWORK_BINARY_REAL without SwiftSyntax (${platform_lc}/${ARCH})..."
 before_size=$(stat -f%z "$FRAMEWORK_BINARY_REAL" 2>/dev/null || stat -c%s "$FRAMEWORK_BINARY_REAL")
 
